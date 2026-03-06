@@ -58,14 +58,20 @@ if sessions_data:
     # Find the latest session (or live one if in progress)
     latest_session = None
     for session in sessions_data:
+        # Skip known invalid session key 9222
+        if session.get('session_key') == 9222:
+            continue
         # Check common live status labels (adjust if needed)
         status = session.get('status', '').lower()
         if status in ['active', 'live', 'in_progress']:
             latest_session = session
             break
-    # If no live session, take the most recent one
+    # If no live session, take the most recent one (skipping 9222)
     if not latest_session and sessions_data:
-        latest_session = sessions_data[0]
+        for session in sessions_data:
+            if session.get('session_key') != 9222:
+                latest_session = session
+                break
 
     if latest_session:
         temp_session_key = latest_session.get('session_key')
@@ -77,10 +83,12 @@ if sessions_data:
             test_response = fetch_data(API_URL_LAPS, params={"session_key": session_key, "limit": 1})
             if not test_response:
                 print(f"No lap data for session {session_key}, trying next most recent")
-                # Try the next session in the list if the first one has no data
+                # Try the next session in the list if the first one has no data (skipping 9222)
                 for i in range(1, min(5, len(sessions_data))):  # Check up to 5 sessions
                     if i < len(sessions_data):
                         latest_session = sessions_data[i]
+                        if latest_session.get('session_key') == 9222:
+                            continue
                         temp_session_key = latest_session.get('session_key')
                         if temp_session_key:
                             session_key = temp_session_key
@@ -103,6 +111,9 @@ with st.sidebar:
     session_options = {}
     if sessions:
         for s in sessions[:10]:
+            # Skip known invalid session key 9222
+            if s.get('session_key') == 9222:
+                continue
             # Get values safely, with defaults if missing
             name = s.get('session_name', 'Unknown Session')
             year = s.get('year', 'Unknown Year')
@@ -115,7 +126,7 @@ with st.sidebar:
         selected_session = st.selectbox("Select Session", options=session_options.keys())
         st.session_state.session_key = session_options[selected_session]
     else:
-        st.warning("No sessions available to select")
+        st.warning("No valid sessions available to select")
     
     # Time Range Selector (Like World Monitor's 1h/6h/24h)
     time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"], key="time_range_select")
