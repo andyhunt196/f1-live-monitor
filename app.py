@@ -36,7 +36,7 @@ tabs = st.tabs(["🌍 Circuit World", "💻 Car Tech", "📈 Team Stats", "📢 
 API_URL_LAPS = "https://api.openf1.org/v1/laps"
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"
-# List of known invalid session keys (no lap data available)
+# List of known invalid session keys (kept for quick reference, but code now auto-skips invalid ones)
 INVALID_SESSION_KEYS = [9222, 7763, 7764]
 
 # --- Function to Fetch Data (with error handling) ---
@@ -46,7 +46,9 @@ def fetch_data(url, params=None):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        # Only show error for critical failures, not for expected missing data
+        if "404" not in str(e):
+            st.error(f"Error fetching data: {e}")
         return None
 
 # Get all sessions with error handling
@@ -57,47 +59,38 @@ if sessions_data:
     # Sort sessions by date (newest first)
     sessions_data.sort(key=lambda x: x.get('date_start', ''), reverse=True)
 
-    # Find the latest session (or live one if in progress)
+    # Find the latest session with valid lap data
     latest_session = None
     for session in sessions_data:
-        # Skip known invalid session keys
+        # Skip known invalid keys first
         if session.get('session_key') in INVALID_SESSION_KEYS:
             continue
-        # Check common live status labels (adjust if needed)
-        status = session.get('status', '').lower()
-        if status in ['active', 'live', 'in_progress']:
-            latest_session = session
-            break
-    # If no live session, take the most recent one (skipping invalid keys)
-    if not latest_session and sessions_data:
-        for session in sessions_data:
-            if session.get('session_key') not in INVALID_SESSION_KEYS:
+        # Check if this session has lap data
+        temp_session_key = session.get('session_key')
+        if temp_session_key:
+            test_response = fetch_data(API_URL_LAPS, params={"session_key": temp_session_key, "limit": 1})
+            if test_response:
                 latest_session = session
+                session_key = temp_session_key
+                print(f"Found valid session: {session_key} for {session.get('session_name', 'Unknown Session')}")
                 break
 
-    if latest_session:
-        temp_session_key = latest_session.get('session_key')
-        if temp_session_key:
-            session_key = temp_session_key
-            print(f"Using session key: {session_key} for {latest_session.get('session_name', 'Unknown Session')}")
-            
-            # Verify this session has lap data before using it
-            test_response = fetch_data(API_URL_LAPS, params={"session_key": session_key, "limit": 1})
-            if not test_response:
-                print(f"No lap data for session {session_key}, trying next most recent")
-                # Try the next session in the list if the first one has no data (skipping invalid keys)
-                for i in range(1, min(5, len(sessions_data))):  # Check up to 5 sessions
-                    if i < len(sessions_data):
-                        latest_session = sessions_data[i]
-                        if latest_session.get('session_key') in INVALID_SESSION_KEYS:
-                            continue
-                        temp_session_key = latest_session.get('session_key')
-                        if temp_session_key:
-                            session_key = temp_session_key
-                            test_response = fetch_data(API_URL_LAPS, params={"session_key": session_key, "limit": 1})
-                            if test_response:
-                                print(f"Found valid session: {session_key} for {latest_session.get('session_name', 'Unknown Session')}")
-                                break
+    # If no valid session found in initial loop, try up to 10 more sessions
+    if not latest_session:
+        for i in range(1, min(11, len(sessions_data))):
+            if i < len(sessions_data):
+                session = sessions_data[i]
+                # Skip known invalid keys
+                if session.get('session_key') in INVALID_SESSION_KEYS:
+                    continue
+                temp_session_key = session.get('session_key')
+                if temp_session_key:
+                    test_response = fetch_data(API_URL_LAPS, params={"session_key": temp_session_key, "limit": 1})
+                    if test_response:
+                        latest_session = session
+                        session_key = temp_session_key
+                        print(f"Found valid session: {session_key} for {session.get('session_name', 'Unknown Session')}")
+                        break
 
 # --- Initialize Session State ---
 if "session_key" not in st.session_state:
@@ -108,27 +101,28 @@ if "playback_lap" not in st.session_state:
 # --- Sidebar Controls (Like World Monitor's Layers/Time Select) ---
 with st.sidebar:
     st.subheader("Controls")
-    # Session Selector
+    # Session Selector (only show sessions with valid lap data)
     sessions = fetch_data(API_URL_SESSIONS)
     session_options = {}
     if sessions:
-        for s in sessions[:10]:
-            # Skip known invalid session keys
+        for s in sessions[:15]:  # Check up to 15 sessions for the dropdown
+            # Skip known invalid keys first
             if s.get('session_key') in INVALID_SESSION_KEYS:
                 continue
-            # Get values safely, with defaults if missing
-            name = s.get('session_name', 'Unknown Session')
-            year = s.get('year', 'Unknown Year')
-            key = s.get('session_key')
-            # Only add to options if we have a valid session key
-            if key is not None:
-                session_options[f"{name} ({year})"] = key
+            # Verify this session has lap data before adding to options
+            temp_key = s.get('session_key')
+            if temp_key:
+                test_resp = fetch_data(API_URL_LAPS, params={"session_key": temp_key, "limit": 1})
+                if test_resp:
+                    name = s.get('session_name', 'Unknown Session')
+                    year = s.get('year', 'Unknown Year')
+                    session_options[f"{name} ({year})"] = temp_key
     
     if session_options:
         selected_session = st.selectbox("Select Session", options=session_options.keys())
         st.session_state.session_key = session_options[selected_session]
     else:
-        st.warning("No valid sessions available to select")
+        st.warning("No valid sessions with lap data available to select")
     
     # Time Range Selector (Like World Monitor's 1h/6h/24h)
     time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"], key="time_range_select")
