@@ -37,7 +37,7 @@ API_URL_LAPS = "https://api.openf1.org/v1/laps"
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"
 # List of known invalid session keys (no lap data available)
-INVALID_SESSION_KEYS = [9222, 7763]
+INVALID_SESSION_KEYS = [9222, 7763, 7764]
 
 # --- Function to Fetch Data (with error handling) ---
 def fetch_data(url, params=None):
