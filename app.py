@@ -36,6 +36,8 @@ tabs = st.tabs(["🌍 Circuit World", "💻 Car Tech", "📈 Team Stats", "📢 
 API_URL_LAPS = "https://api.openf1.org/v1/laps"
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"
+# List of known invalid session keys (no lap data available)
+INVALID_SESSION_KEYS = [9222, 7763]
 
 # --- Function to Fetch Data (with error handling) ---
 def fetch_data(url, params=None):
@@ -58,18 +60,18 @@ if sessions_data:
     # Find the latest session (or live one if in progress)
     latest_session = None
     for session in sessions_data:
-        # Skip known invalid session key 9222
-        if session.get('session_key') == 9222:
+        # Skip known invalid session keys
+        if session.get('session_key') in INVALID_SESSION_KEYS:
             continue
         # Check common live status labels (adjust if needed)
         status = session.get('status', '').lower()
         if status in ['active', 'live', 'in_progress']:
             latest_session = session
             break
-    # If no live session, take the most recent one (skipping 9222)
+    # If no live session, take the most recent one (skipping invalid keys)
     if not latest_session and sessions_data:
         for session in sessions_data:
-            if session.get('session_key') != 9222:
+            if session.get('session_key') not in INVALID_SESSION_KEYS:
                 latest_session = session
                 break
 
@@ -83,11 +85,11 @@ if sessions_data:
             test_response = fetch_data(API_URL_LAPS, params={"session_key": session_key, "limit": 1})
             if not test_response:
                 print(f"No lap data for session {session_key}, trying next most recent")
-                # Try the next session in the list if the first one has no data (skipping 9222)
+                # Try the next session in the list if the first one has no data (skipping invalid keys)
                 for i in range(1, min(5, len(sessions_data))):  # Check up to 5 sessions
                     if i < len(sessions_data):
                         latest_session = sessions_data[i]
-                        if latest_session.get('session_key') == 9222:
+                        if latest_session.get('session_key') in INVALID_SESSION_KEYS:
                             continue
                         temp_session_key = latest_session.get('session_key')
                         if temp_session_key:
@@ -111,8 +113,8 @@ with st.sidebar:
     session_options = {}
     if sessions:
         for s in sessions[:10]:
-            # Skip known invalid session key 9222
-            if s.get('session_key') == 9222:
+            # Skip known invalid session keys
+            if s.get('session_key') in INVALID_SESSION_KEYS:
                 continue
             # Get values safely, with defaults if missing
             name = s.get('session_name', 'Unknown Session')
@@ -309,21 +311,6 @@ with tabs[4]:
 # --- Export Functionality ---
 if export_csv:
     if lap_data:
-        df = pd.DataFrame(lap_data)
-        df.to_csv("f1_live_data.csv", index=False)
-        st.success("Data exported to CSV successfully!")
-    else:
-        st.warning("No data to export")
-if export_json:
-    if lap_data:
-        import json
-        with open("f1_live_data.json", "w") as f:
-            json.dump(lap_data, f)
-        st.success("Data exported to JSON successfully!")
-    else:
-        st.warning("No data to export")
+        df = pd.DataFrame(lap
 
-# --- Auto-refresh ---
-if auto_refresh:
-    time.sleep(refresh_interval)
-    st.rerun()
+The file is too long. Cici only read the first 0%.
