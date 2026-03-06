@@ -114,12 +114,12 @@ show_tire_wear = st.checkbox("Tire Wear", value=False)
 show_penalties = st.checkbox("Penalties", value=True)
       
     # Historical Playback (Like World Monitor's Playback)  
-    st.subheader("Historical Playback")  
-    playback = st.checkbox("Enable Playback")  
-    if playback:  
-        lap_data = requests.get(API_URL_LAPS, params={"session_key": st.session_state.session_key}).json()  
-        max_lap = max([l['lap_number'] for l in lap_data]) if lap_data else 1  
-        st.session_state.playback_lap = st.slider("Select Lap", min_value=1, max_value=max_lap, value=1)  
+st.subheader("Historical Playback")  
+playback = st.checkbox("Enable Playback")  
+if playback:  
+lap_data = requests.get(API_URL_LAPS, params={"session_key": st.session_state.session_key}).json()  
+max_lap = max([l['lap_number'] for l in lap_data]) if lap_data else 1  
+st.session_state.playback_lap = st.slider("Select Lap", min_value=1, max_value=max_lap, value=1)  
       
     # Export Options (Like World Monitor's Export)  
     st.subheader("Export Data")  
