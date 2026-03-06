@@ -91,7 +91,15 @@ with st.sidebar:
     st.subheader("Controls")  
     # Session Selector  
     sessions = requests.get(API_URL_SESSIONS).json()  
-    session_options = {f"{s['session_name']} ({s['year']})": s['session_key'] for s in sessions[:10]}  
+session_options = {}
+for s in sessions[:10]:
+    # Get values safely, with defaults if missing
+    name = s.get('session_name', 'Unknown Session')
+    year = s.get('year', 'Unknown Year')
+    key = s.get('session_key')
+    # Only add to options if we have a valid session key
+    if key is not None:
+        session_options[f"{name} ({year})"] = key
     selected_session = st.selectbox("Select Session", options=session_options.keys())  
     st.session_state.session_key = session_options[selected_session]  
       
