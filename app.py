@@ -36,7 +36,34 @@ tabs = st.tabs(["🌍 Circuit World", "💻 Car Tech", "📈 Team Stats", "📢 
 API_URL_LAPS = "https://api.openf1.org/v1/laps"  
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"  
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"  
-DEFAULT_SESSION_KEY = 9148  # 2023 British GP; change for live races  
+import requests
+
+# Get all sessions
+sessions_url = "https://api.openf1.org/v1/sessions"
+sessions_response = requests.get(sessions_url)
+sessions_data = sessions_response.json()
+
+# Sort sessions by date (newest first)
+sessions_data.sort(key=lambda x: x['date_start'], reverse=True)
+
+# Find the latest session (or live one if in progress)
+latest_session = None
+for session in sessions_data:
+    # Check if session is live (status might be 'active' or similar—adjust if needed)
+    if session.get('status') == 'active':
+        latest_session = session
+        break
+# If no live session, take the most recent one
+if not latest_session and sessions_data:
+    latest_session = sessions_data[0]
+
+if latest_session:
+    session_key = latest_session['session_key']
+    print(f"Using session key: {session_key} for {latest_session['session_name']}")
+else:
+    # Fallback if no sessions found
+    session_key = 9148  # Keep your old key as a backup
+    print("No sessions found, using fallback key")
   
 # --- Initialize Session State ---  
 if "session_key" not in st.session_state:  
