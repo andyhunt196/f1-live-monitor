@@ -261,4 +261,4 @@ if export_json:
 # --- Auto-refresh ---  
 if st.checkbox("Enable Auto-refresh", value=True):  
     time.sleep(5)  
-    st.experimental_rerun()  
+    st.rerun()  
