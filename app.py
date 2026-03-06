@@ -106,12 +106,12 @@ for s in sessions[:10]:
     # Time Range Selector (Like World Monitor's 1h/6h/24h)  
 time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"], key="time_range_select")
       
-    # Layer Toggles (Like World Monitor's Layers)  
-    st.subheader("Data Layers")  
-    show_lap_times = st.checkbox("Lap Times", value=True)  
-    show_speed_zones = st.checkbox("Speed Zones", value=True)  
-    show_tire_wear = st.checkbox("Tire Wear", value=False)  
-    show_penalties = st.checkbox("Penalties", value=True)  
+   # Layer Toggles (Like World Monitor's Layers)
+st.subheader("Data Layers")
+show_lap_times = st.checkbox("Lap Times", value=True)
+show_speed_zones = st.checkbox("Speed Zones", value=True)
+show_tire_wear = st.checkbox("Tire Wear", value=False)
+show_penalties = st.checkbox("Penalties", value=True)
       
     # Historical Playback (Like World Monitor's Playback)  
     st.subheader("Historical Playback")  
