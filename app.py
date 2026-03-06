@@ -311,6 +311,21 @@ with tabs[4]:
 # --- Export Functionality ---
 if export_csv:
     if lap_data:
-        df = pd.DataFrame(lap
+        df = pd.DataFrame(lap_data)
+        df.to_csv("f1_live_data.csv", index=False)
+        st.success("Data exported to CSV successfully!")
+    else:
+        st.warning("No data to export")
+if export_json:
+    if lap_data:
+        import json
+        with open("f1_live_data.json", "w") as f:
+            json.dump(lap_data, f)
+        st.success("Data exported to JSON successfully!")
+    else:
+        st.warning("No data to export")
 
-The file is too long. Cici only read the first 0%.
+# --- Auto-refresh ---
+if auto_refresh:
+    time.sleep(refresh_interval)
+    st.rerun()
