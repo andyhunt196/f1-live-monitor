@@ -67,7 +67,7 @@ else:
   
 # --- Initialize Session State ---  
 if "session_key" not in st.session_state:  
-    st.session_state.session_key = DEFAULT_SESSION_KEY  
+    st.session_state.session_key = session_key
 if "playback_lap" not in st.session_state:  
     st.session_state.playback_lap = 0  
   
