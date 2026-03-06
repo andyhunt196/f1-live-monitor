@@ -315,5 +315,3 @@ if export_json:
         with open("f1_live_data.json", "w") as f:
             json.dump(lap_data, f)
         st.success
-
-The file is too long. Cici only read the first 0%.
