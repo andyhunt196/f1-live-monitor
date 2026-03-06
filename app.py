@@ -48,8 +48,9 @@ sessions_data.sort(key=lambda x: x['date_start'], reverse=True)
 # Find the latest session (or live one if in progress)
 latest_session = None
 for session in sessions_data:
-    # Check if session is live (status might be 'active' or similar—adjust if needed)
-    if session.get('status') == 'active':
+    # Check common live status labels (adjust if needed)
+    status = session.get('status', '').lower()
+    if status in ['active', 'live', 'in_progress']:
         latest_session = session
         break
 # If no live session, take the most recent one
@@ -59,6 +60,21 @@ if not latest_session and sessions_data:
 if latest_session:
     session_key = latest_session['session_key']
     print(f"Using session key: {session_key} for {latest_session['session_name']}")
+    
+    # Verify this session has lap data before using it
+    test_lap_url = "https://api.openf1.org/v1/laps"
+    test_response = requests.get(test_lap_url, params={"session_key": session_key, "limit": 1})
+    if test_response.status_code != 200 or not test_response.json():
+        print(f"No lap data for session {session_key}, trying next most recent")
+        # Try the next session in the list if the first one has no data
+        for i in range(1, min(5, len(sessions_data))):  # Check up to 5 sessions
+            if i < len(sessions_data):
+                latest_session = sessions_data[i]
+                session_key = latest_session['session_key']
+                test_response = requests.get(test_lap_url, params={"session_key": session_key, "limit": 1})
+                if test_response.status_code == 200 and test_response.json():
+                    print(f"Found valid session: {session_key} for {latest_session['session_name']}")
+                    break
 else:
     # Fallback if no sessions found
     session_key = 9148  # Keep your old key as a backup
