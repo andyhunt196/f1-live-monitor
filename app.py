@@ -104,7 +104,7 @@ for s in sessions[:10]:
     st.session_state.session_key = session_options[selected_session]  
       
     # Time Range Selector (Like World Monitor's 1h/6h/24h)  
-    time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"])  
+time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"], key="time_range_select")
       
     # Layer Toggles (Like World Monitor's Layers)  
     st.subheader("Data Layers")  
