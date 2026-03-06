@@ -5,7 +5,7 @@ import pandas as pd
 import time
 from datetime import datetime
 
-# --- Page Config (Match World Monitor's Wide Layout) ---
+# --- Page Config ---
 st.set_page_config(page_title="F1 Live Monitor", page_icon="🏎️", layout="wide")
 st.markdown("""
     <style>
@@ -20,7 +20,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Header (Like World Monitor's Top Bar) ---
+# --- Header ---
 st.markdown("""
     <div class="header">
         <h1>🏎️ F1 Live Monitor</h1>
@@ -29,30 +29,48 @@ st.markdown("""
     </div>
 """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")), unsafe_allow_html=True)
 
-# --- Navigation Tabs (Like World Monitor's Top Nav) ---
+# --- Navigation Tabs ---
 tabs = st.tabs(["🌍 Circuit World", "💻 Car Tech", "📈 Team Stats", "📢 Alerts & News", "⚙️ Settings"])
 
 # --- OpenF1 API Setup ---
 API_URL_LAPS = "https://api.openf1.org/v1/laps"
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"
-# List of known invalid session keys (kept for quick reference, but code now auto-skips invalid ones)
 INVALID_SESSION_KEYS = [9222, 7763, 7764]
+REQUEST_DELAY = 2  # Seconds between requests to avoid rate limits
+MAX_RETRIES = 3    # Max retries for rate-limited requests
 
-# --- Function to Fetch Data (with error handling) ---
-def fetch_data(url, params=None):
+# --- Function to Fetch Data (with rate limit handling & retries) ---
+def fetch_data(url, params=None, retries=0):
     try:
+        # Add delay before each request to avoid rate limits
+        time.sleep(REQUEST_DELAY)
         response = requests.get(url, params=params)
+        # Handle rate limits with retries
+        if response.status_code == 429:
+            if retries < MAX_RETRIES:
+                wait_time = int(response.headers.get("Retry-After", 5 * (retries + 1)))
+                st.warning(f"Rate limit hit. Waiting {wait_time} seconds before retrying...")
+                time.sleep(wait_time)
+                return fetch_data(url, params, retries + 1)
+            else:
+                st.error("Max retries reached. Please try again later.")
+                return None
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        # Only show error for critical failures, not for expected missing data
-        if "404" not in str(e):
+        # Only show non-404/non-429 errors as critical
+        if "404" not in str(e) and "429" not in str(e):
             st.error(f"Error fetching data: {e}")
         return None
 
-# Get all sessions with error handling
-sessions_data = fetch_data(API_URL_SESSIONS)
+# --- Cache session data to avoid repeated calls ---
+@st.cache_data(show_spinner=False)
+def get_cached_sessions():
+    return fetch_data(API_URL_SESSIONS)
+
+# Get all sessions with caching
+sessions_data = get_cached_sessions()
 session_key = 9148  # Default fallback key
 
 if sessions_data:
@@ -62,10 +80,8 @@ if sessions_data:
     # Find the latest session with valid lap data
     latest_session = None
     for session in sessions_data:
-        # Skip known invalid keys first
         if session.get('session_key') in INVALID_SESSION_KEYS:
             continue
-        # Check if this session has lap data
         temp_session_key = session.get('session_key')
         if temp_session_key:
             test_response = fetch_data(API_URL_LAPS, params={"session_key": temp_session_key, "limit": 1})
@@ -75,12 +91,11 @@ if sessions_data:
                 print(f"Found valid session: {session_key} for {session.get('session_name', 'Unknown Session')}")
                 break
 
-    # If no valid session found in initial loop, try up to 10 more sessions
+    # If no valid session found, try up to 10 more
     if not latest_session:
         for i in range(1, min(11, len(sessions_data))):
             if i < len(sessions_data):
                 session = sessions_data[i]
-                # Skip known invalid keys
                 if session.get('session_key') in INVALID_SESSION_KEYS:
                     continue
                 temp_session_key = session.get('session_key')
@@ -98,18 +113,15 @@ if "session_key" not in st.session_state:
 if "playback_lap" not in st.session_state:
     st.session_state.playback_lap = 0
 
-# --- Sidebar Controls (Like World Monitor's Layers/Time Select) ---
+# --- Sidebar Controls ---
 with st.sidebar:
     st.subheader("Controls")
-    # Session Selector (only show sessions with valid lap data)
-    sessions = fetch_data(API_URL_SESSIONS)
+    # Session Selector (only show valid sessions)
     session_options = {}
-    if sessions:
-        for s in sessions[:15]:  # Check up to 15 sessions for the dropdown
-            # Skip known invalid keys first
+    if sessions_data:
+        for s in sessions_data[:15]:
             if s.get('session_key') in INVALID_SESSION_KEYS:
                 continue
-            # Verify this session has lap data before adding to options
             temp_key = s.get('session_key')
             if temp_key:
                 test_resp = fetch_data(API_URL_LAPS, params={"session_key": temp_key, "limit": 1})
@@ -124,17 +136,17 @@ with st.sidebar:
     else:
         st.warning("No valid sessions with lap data available to select")
     
-    # Time Range Selector (Like World Monitor's 1h/6h/24h)
+    # Time Range Selector
     time_range = st.selectbox("Time Range", ["1h", "6h", "24h", "Full Session"], key="time_range_select")
     
-    # Layer Toggles (Like World Monitor's Layers)
+    # Layer Toggles
     st.subheader("Data Layers")
     show_lap_times = st.checkbox("Lap Times", value=True)
     show_speed_zones = st.checkbox("Speed Zones", value=True)
     show_tire_wear = st.checkbox("Tire Wear", value=False)
     show_penalties = st.checkbox("Penalties", value=True)
     
-    # Historical Playback (Like World Monitor's Playback)
+    # Historical Playback
     st.subheader("Historical Playback")
     playback = st.checkbox("Enable Playback")
     if playback:
@@ -142,15 +154,15 @@ with st.sidebar:
         max_lap = max([l['lap_number'] for l in lap_data]) if lap_data else 1
         st.session_state.playback_lap = st.slider("Select Lap", min_value=1, max_value=max_lap, value=1)
     
-    # Export Options (Like World Monitor's Export)
+    # Export Options
     st.subheader("Export Data")
     export_csv = st.button("Export to CSV")
     export_json = st.button("Export to JSON")
 
-# --- Tab 1: Circuit World (Interactive Map - Like World Monitor's Map) ---
+# --- Tab 1: Circuit World ---
 with tabs[0]:
     st.subheader("Circuit Map & Live Positions")
-    # Get circuit coordinates (sample for Silverstone; replace with real data)
+    # Sample circuit coordinates (replace with real data if available)
     circuit_coords = pd.DataFrame({
         "x": [-1.0, -0.8, -0.5, 0.0, 0.3, 0.5, 0.3, 0.0, -0.5, -0.8],
         "y": [0.0, 0.5, 0.8, 0.7, 0.5, 0.0, -0.5, -0.7, -0.8, -0.5]
@@ -161,7 +173,6 @@ with tabs[0]:
     car_positions = pd.DataFrame()
     if lap_data:
         if playback:
-            # Use selected lap for playback
             playback_data = [l for l in lap_data if l.get('lap_number') == st.session_state.playback_lap]
             if playback_data:
                 car_positions = pd.DataFrame({
@@ -170,7 +181,6 @@ with tabs[0]:
                     "driver": [p.get('driver_number') for p in playback_data if 'x' in p]
                 })
         else:
-            # Use latest positions
             car_positions = pd.DataFrame({
                 "x": [l.get('x') for l in lap_data if 'x' in l],
                 "y": [l.get('y') for l in lap_data if 'y' in l],
@@ -179,13 +189,11 @@ with tabs[0]:
     
     # Build interactive map
     fig = go.Figure()
-    # Add circuit path
     fig.add_trace(go.Scatter(
         x=circuit_coords["x"], y=circuit_coords["y"],
         mode="lines", line=dict(color="#1a237e", width=3),
         name="Circuit Track"
     ))
-    # Add car positions
     if not car_positions.empty:
         fig.add_trace(go.Scatter(
             x=car_positions["x"], y=car_positions["y"],
@@ -193,9 +201,7 @@ with tabs[0]:
             text=car_positions["driver"], textposition="top center",
             name="Car Positions"
         ))
-    # Add speed zones if toggled
     if show_speed_zones:
-        # Sample speed zones (replace with real data)
         speed_zones = pd.DataFrame({
             "x": [-0.5, 0.3], "y": [0.8, 0.0],
             "label": ["High Speed", "Medium Speed"]
@@ -206,7 +212,6 @@ with tabs[0]:
             text=speed_zones["label"], textposition="bottom center",
             name="Speed Zones"
         ))
-    # Update layout
     fig.update_layout(
         showlegend=True, height=600,
         title="Current Circuit: Silverstone",
@@ -214,25 +219,17 @@ with tabs[0]:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# --- Tab 2: Car Tech (Like World Monitor's Tech Section) ---
+# --- Tab 2: Car Tech ---
 with tabs[1]:
     st.subheader("Car Technical Data & Telemetry")
     if lap_data and show_lap_times:
-        # Show latest lap data
         latest_laps = lap_data[:5]
         for lap in latest_laps:
             driver = lap.get('driver_number', 'Unknown')
             lap_num = lap.get('lap_number', 'Unknown')
             dur = lap.get('lap_duration')
             tire = lap.get('tire_compound', 'N/A')
-            # Format lap time
-            if dur:
-                mins = int(dur // 60)
-                secs = int(dur % 60)
-                lap_str = f"{mins:02d}:{secs:02d}"
-            else:
-                lap_str = "N/A"
-            # Color-code tire wear
+            lap_str = f"{int(dur // 60):02d}:{int(dur % 60):02d}" if dur else "N/A"
             tire_color = "green" if tire == "Soft" else "yellow" if tire == "Medium" else "red"
             st.markdown(f"""
                 <div style='border:1px solid #ddd; border-radius:8px; padding:15px; margin:10px 0;'>
@@ -243,48 +240,37 @@ with tabs[1]:
     else:
         st.info("No car tech data available")
 
-# --- Tab 3: Team Stats (Like World Monitor's Finance Section) ---
+# --- Tab 3: Team Stats ---
 with tabs[2]:
     st.subheader("Team & Driver Standings")
-    # Get driver data
     driver_data = fetch_data(API_URL_DRIVERS)
     if driver_data and lap_data:
-        # Calculate standings
         standings = {}
         for lap in lap_data:
             driver = lap.get('driver_number')
             pos = lap.get('position')
             if driver not in standings and pos:
                 standings[driver] = pos
-        # Sort by position
         sorted_standings = sorted(standings.items(), key=lambda x: x[1])
-        # Create table
         standings_df = pd.DataFrame(sorted_standings, columns=["Driver Number", "Position"])
-        # Add team names
         standings_df["Team"] = [next((d.get('team_name') for d in driver_data if d.get('driver_number') == dr), "N/A") for dr in standings_df["Driver Number"]]
         st.dataframe(standings_df, use_container_width=True, hide_index=True)
     else:
         st.info("No standings data available")
 
-# --- Tab 4: Alerts & News (Like World Monitor's News Section) ---
+# --- Tab 4: Alerts & News ---
 with tabs[3]:
     st.subheader("Live Alerts & F1 News")
-    # Sample alerts (replace with real F1 news API)
     alerts = [
         {"type": "info", "text": "🔄 Live updates active for 2023 British Grand Prix"},
         {"type": "warning", "text": "⚠️ Safety car deployed at lap 25"},
         {"type": "danger", "text": "📢 Driver 44 receives a 5-second penalty for speeding in the pit lane"},
         {"type": "info", "text": "🏆 Driver 1 sets fastest lap of the race: 1:28.456"}
     ]
-    # Filter alerts based on toggles
     if not show_penalties:
         alerts = [a for a in alerts if "penalty" not in a['text'].lower()]
-    # Display alerts
     for alert in alerts:
-        st.markdown(f"""
-            <div class='alert alert-{alert["type"]}'>{alert["text"]}</div>
-        """, unsafe_allow_html=True)
-    # Live news feed (sample)
+        st.markdown(f"""<div class='alert alert-{alert["type"]}'>{alert["text"]}</div>""", unsafe_allow_html=True)
     st.subheader("Latest F1 News")
     news = [
         "Hamilton: 'This car has potential to win'",
@@ -294,12 +280,12 @@ with tabs[3]:
     for item in news:
         st.write(f"- {item}")
 
-# --- Tab 5: Settings (Like World Monitor's Settings) ---
+# --- Tab 5: Settings ---
 with tabs[4]:
     st.subheader("Dashboard Settings")
     st.checkbox("Dark Mode", value=False)
     auto_refresh = st.checkbox("Auto-refresh", value=True)
-    refresh_interval = st.number_input("Refresh Interval (seconds)", min_value=5, max_value=60, value=5)
+    refresh_interval = st.number_input("Refresh Interval (seconds)", min_value=10, max_value=60, value=10)  # Increased min to avoid rate limits
     st.selectbox("Map Type", ["2D", "3D"])
 
 # --- Export Functionality ---
