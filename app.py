@@ -36,7 +36,6 @@ tabs = st.tabs(["🌍 Circuit World", "💻 Car Tech", "📈 Team Stats", "📢 
 API_URL_LAPS = "https://api.openf1.org/v1/laps"  
 API_URL_SESSIONS = "https://api.openf1.org/v1/sessions"  
 API_URL_DRIVERS = "https://api.openf1.org/v1/drivers"  
-import requests
 
 # Get all sessions
 sessions_url = "https://api.openf1.org/v1/sessions"
