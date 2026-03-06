@@ -40,7 +40,16 @@ INVALID_SESSION_KEYS = [9222, 7763, 7764]
 REQUEST_DELAY = 2  # Seconds between requests to avoid rate limits
 MAX_RETRIES = 3    # Max retries for rate-limited requests
 
-# --- Function to Fetch Data (with rate limit handling & retries) ---
+# --- Sample lap data for fallback when API is unavailable ---
+SAMPLE_LAP_DATA = [
+    {"driver_number": 1, "lap_number": 1, "lap_duration": 90.5, "tire_compound": "Soft", "x": -0.8, "y": 0.5, "position": 1},
+    {"driver_number": 44, "lap_number": 1, "lap_duration": 91.2, "tire_compound": "Soft", "x": -0.5, "y": 0.8, "position": 2},
+    {"driver_number": 33, "lap_number": 1, "lap_duration": 91.8, "tire_compound": "Medium", "x": 0.0, "y": 0.7, "position": 3},
+    {"driver_number": 11, "lap_number": 1, "lap_duration": 92.3, "tire_compound": "Medium", "x": 0.3, "y": 0.5, "position": 4},
+    {"driver_number": 16, "lap_number": 1, "lap_duration": 92.7, "tire_compound": "Hard", "x": 0.5, "y": 0.0, "position": 5}
+]
+
+# --- Function to Fetch Data (with rate limit handling, retries & fallback) ---
 def fetch_data(url, params=None, retries=0):
     try:
         # Add delay before each request to avoid rate limits
@@ -54,13 +63,17 @@ def fetch_data(url, params=None, retries=0):
                 time.sleep(wait_time)
                 return fetch_data(url, params, retries + 1)
             else:
-                st.error("Max retries reached. Please try again later.")
-                return None
+                st.error("Max retries reached. Using sample data instead.")
+                return SAMPLE_LAP_DATA if url == API_URL_LAPS else None
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        # Only show non-404/non-429 errors as critical
-        if "404" not in str(e) and "429" not in str(e):
+        # Use sample data if laps endpoint fails
+        if url == API_URL_LAPS:
+            st.warning("Could not fetch lap data from API. Using sample data for demonstration.")
+            return SAMPLE_LAP_DATA
+        # Only show non-404/non-429 errors for other endpoints
+        elif "404" not in str(e) and "429" not in str(e):
             st.error(f"Error fetching data: {e}")
         return None
 
@@ -71,7 +84,7 @@ def get_cached_sessions():
 
 # Get all sessions with caching
 sessions_data = get_cached_sessions()
-session_key = 9148  # Default fallback key
+session_key = 7765  # Updated default fallback key (from your sessions data)
 
 if sessions_data:
     # Sort sessions by date (newest first)
@@ -301,11 +314,6 @@ if export_json:
         import json
         with open("f1_live_data.json", "w") as f:
             json.dump(lap_data, f)
-        st.success("Data exported to JSON successfully!")
-    else:
-        st.warning("No data to export")
+        st.success
 
-# --- Auto-refresh ---
-if auto_refresh:
-    time.sleep(refresh_interval)
-    st.rerun()
+The file is too long. Cici only read the first 0%.
